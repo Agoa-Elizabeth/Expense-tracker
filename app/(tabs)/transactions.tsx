@@ -1,15 +1,17 @@
+import { AppHeader } from '@/components/app-header';
+import { TransactionRow } from '@/components/transaction-row';
 import { useTransactions } from '@/context/TransactionContext';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type FilterType = 'all' | 'income' | 'expense';
 type DateFilter = 'all' | 'thisMonth' | 'lastMonth';
@@ -20,6 +22,10 @@ export default function TransactionsScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const activeFilterCount =
+    (filter !== 'all' ? 1 : 0) + (dateFilter !== 'all' ? 1 : 0);
 
   const filteredTransactions = useMemo(() => {
     const now = new Date();
@@ -82,38 +88,6 @@ export default function TransactionsScreen() {
     return `UGX ${amount.toLocaleString()}`;
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-
-    const isToday =
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear();
-
-    if (isToday) {
-      return 'Today';
-    }
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const isYesterday =
-      date.getDate() === yesterday.getDate() &&
-      date.getMonth() === yesterday.getMonth() &&
-      date.getFullYear() === yesterday.getFullYear();
-
-    if (isYesterday) {
-      return 'Yesterday';
-    }
-
-    return date.toLocaleDateString('en-US', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
   const totalIncome = filteredTransactions
     .filter((transaction) => transaction.type === 'income')
     .reduce((total, transaction) => total + transaction.amount, 0);
@@ -129,20 +103,10 @@ export default function TransactionsScreen() {
         contentContainerStyle={styles.content}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Transactions</Text>
-            <Text style={styles.subtitle}>
-              Keep track of your money
-            </Text>
-          </View>
-
-          <View style={styles.countBadge}>
-            <Text style={styles.countText}>
-              {transactions.length}
-            </Text>
-          </View>
-        </View>
+        <AppHeader
+          title="Transactions"
+          subtitle="Keep track of your money"
+        />
 
         {/* Search */}
         <View style={styles.searchContainer}>
@@ -171,143 +135,144 @@ export default function TransactionsScreen() {
           )}
         </View>
 
-        {/* Transaction Type Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterRow}
-        >
+        {/* Filters Dropdown */}
+        <View style={styles.dropdown}>
           <Pressable
-            style={[
-              styles.filterButton,
-              filter === 'all' && styles.activeFilter,
-            ]}
-            onPress={() => setFilter('all')}
+            style={styles.dropdownHeader}
+            onPress={() => setFiltersOpen((open) => !open)}
           >
-            <Text
-              style={[
-                styles.filterText,
-                filter === 'all' && styles.activeFilterText,
-              ]}
-            >
-              All
-            </Text>
-          </Pressable>
+            <View style={styles.dropdownHeaderLeft}>
+              <Ionicons
+                name="filter-outline"
+                size={18}
+                color="#4F46E5"
+              />
 
-          <Pressable
-            style={[
-              styles.filterButton,
-              filter === 'income' && styles.activeIncomeFilter,
-            ]}
-            onPress={() => setFilter('income')}
-          >
+              <Text style={styles.dropdownTitle}>Filters</Text>
+
+              {activeFilterCount > 0 && (
+                <View style={styles.activeBadge}>
+                  <Text style={styles.activeBadgeText}>
+                    {activeFilterCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+
             <Ionicons
-              name="arrow-down-outline"
-              size={16}
-              color={
-                filter === 'income' ? '#16A34A' : '#6B7280'
-              }
+              name={filtersOpen ? 'chevron-up' : 'chevron-down'}
+              size={18}
+              color="#6B7280"
             />
-
-            <Text
-              style={[
-                styles.filterText,
-                filter === 'income' &&
-                  styles.activeIncomeFilterText,
-              ]}
-            >
-              Income
-            </Text>
           </Pressable>
 
-          <Pressable
-            style={[
-              styles.filterButton,
-              filter === 'expense' && styles.activeExpenseFilter,
-            ]}
-            onPress={() => setFilter('expense')}
-          >
-            <Ionicons
-              name="arrow-up-outline"
-              size={16}
-              color={
-                filter === 'expense' ? '#DC2626' : '#6B7280'
-              }
-            />
+          {filtersOpen && (
+            <View style={styles.dropdownBody}>
+              <Text style={styles.dropdownSection}>
+                Type
+              </Text>
 
-            <Text
-              style={[
-                styles.filterText,
-                filter === 'expense' &&
-                  styles.activeExpenseFilterText,
-              ]}
-            >
-              Expenses
-            </Text>
-          </Pressable>
-        </ScrollView>
+              <View style={styles.optionRow}>
+                {(
+                  [
+                    { key: 'all', label: 'All' },
+                    { key: 'income', label: 'Income' },
+                    { key: 'expense', label: 'Expenses' },
+                  ] as const
+                ).map((option) => {
+                  const isActive = filter === option.key;
 
-        {/* Date Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.dateFilterRow}
-        >
-          <Pressable
-            style={[
-              styles.dateButton,
-              dateFilter === 'all' && styles.activeDateButton,
-            ]}
-            onPress={() => setDateFilter('all')}
-          >
-            <Text
-              style={[
-                styles.dateText,
-                dateFilter === 'all' && styles.activeDateText,
-              ]}
-            >
-              All time
-            </Text>
-          </Pressable>
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[
+                        styles.optionButton,
+                        isActive &&
+                          (option.key === 'income'
+                            ? styles.activeIncomeOption
+                            : option.key === 'expense'
+                              ? styles.activeExpenseOption
+                              : styles.activeOption),
+                      ]}
+                      onPress={() => setFilter(option.key)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionText,
+                          isActive &&
+                            (option.key === 'income'
+                              ? styles.activeIncomeOptionText
+                              : option.key === 'expense'
+                                ? styles.activeExpenseOptionText
+                                : styles.activeOptionText),
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
-          <Pressable
-            style={[
-              styles.dateButton,
-              dateFilter === 'thisMonth' &&
-                styles.activeDateButton,
-            ]}
-            onPress={() => setDateFilter('thisMonth')}
-          >
-            <Text
-              style={[
-                styles.dateText,
-                dateFilter === 'thisMonth' &&
-                  styles.activeDateText,
-              ]}
-            >
-              This month
-            </Text>
-          </Pressable>
+              <Text style={styles.dropdownSection}>
+                Period
+              </Text>
 
-          <Pressable
-            style={[
-              styles.dateButton,
-              dateFilter === 'lastMonth' &&
-                styles.activeDateButton,
-            ]}
-            onPress={() => setDateFilter('lastMonth')}
-          >
-            <Text
-              style={[
-                styles.dateText,
-                dateFilter === 'lastMonth' &&
-                  styles.activeDateText,
-              ]}
-            >
-              Last month
-            </Text>
-          </Pressable>
-        </ScrollView>
+              <View style={styles.optionRow}>
+                {(
+                  [
+                    { key: 'all', label: 'All time' },
+                    { key: 'thisMonth', label: 'This month' },
+                    { key: 'lastMonth', label: 'Last month' },
+                  ] as const
+                ).map((option) => {
+                  const isActive = dateFilter === option.key;
+
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[
+                        styles.optionButton,
+                        isActive && styles.activeDateOption,
+                      ]}
+                      onPress={() => setDateFilter(option.key)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionText,
+                          isActive &&
+                            styles.activeDateOptionText,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {activeFilterCount > 0 && (
+                <Pressable
+                  style={styles.clearButton}
+                  onPress={() => {
+                    setFilter('all');
+                    setDateFilter('all');
+                  }}
+                >
+                  <Ionicons
+                    name="close-circle-outline"
+                    size={16}
+                    color="#6B7280"
+                  />
+
+                  <Text style={styles.clearButtonText}>
+                    Clear filters
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          )}
+        </View>
 
         {/* Summary */}
         {filteredTransactions.length > 0 && (
@@ -379,61 +344,12 @@ export default function TransactionsScreen() {
             </View>
           ) : (
             filteredTransactions.map((transaction) => (
-              <View
+              <TransactionRow
                 key={transaction.id}
-                style={styles.transaction}
-              >
-                <View style={styles.transactionLeft}>
-                  <View
-                    style={[
-                      styles.transactionIcon,
-                      transaction.type === 'income' &&
-                        styles.incomeTransactionIcon,
-                    ]}
-                  >
-                    <Ionicons
-                      name={
-                        transaction.type === 'income'
-                          ? 'arrow-down-outline'
-                          : 'arrow-up-outline'
-                      }
-                      size={21}
-                      color={
-                        transaction.type === 'income'
-                          ? '#16A34A'
-                          : '#DC2626'
-                      }
-                    />
-                  </View>
-
-                  <View style={styles.transactionInfo}>
-                    <Text style={styles.transactionTitle}>
-                      {transaction.note ||
-                        transaction.category}
-                    </Text>
-
-                    <Text style={styles.transactionCategory}>
-                      {transaction.category} •{' '}
-                      {transaction.paymentMethod}
-                    </Text>
-
-                    <Text style={styles.transactionDate}>
-                      {formatDate(transaction.date)}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text
-                  style={[
-                    styles.transactionAmount,
-                    transaction.type === 'income' &&
-                      styles.incomeAmount,
-                  ]}
-                >
-                  {transaction.type === 'income' ? '+' : '-'}{' '}
-                  {formatAmount(transaction.amount)}
-                </Text>
-              </View>
+                transaction={transaction}
+                showDate
+                showChevron
+              />
             ))
           )}
         </View>
@@ -452,41 +368,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 40,
-  },
-
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#111827',
-  },
-
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 4,
-  },
-
-  countBadge: {
-    minWidth: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#E0E7FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-  },
-
-  countText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#4F46E5',
   },
 
   searchContainer: {
@@ -508,83 +389,133 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
 
-  filterRow: {
-    gap: 8,
-    paddingBottom: 12,
-  },
-
-  filterButton: {
-    height: 40,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+  dropdown: {
     backgroundColor: '#FFFFFF',
+    borderRadius: 15,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    marginBottom: 18,
+    overflow: 'hidden',
+  },
+
+  dropdownHeader: {
+    height: 50,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
   },
 
-  activeFilter: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+  dropdownHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 
-  activeIncomeFilter: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#BBF7D0',
-  },
-
-  activeExpenseFilter: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FECACA',
-  },
-
-  filterText: {
-    fontSize: 13,
+  dropdownTitle: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#111827',
   },
 
-  activeFilterText: {
+  activeBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+
+  activeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 
-  activeIncomeFilterText: {
-    color: '#16A34A',
+  dropdownBody: {
+    paddingHorizontal: 15,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 12,
   },
 
-  activeExpenseFilterText: {
-    color: '#DC2626',
+  dropdownSection: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
   },
 
-  dateFilterRow: {
+  optionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-    paddingBottom: 18,
+    marginBottom: 14,
   },
 
-  dateButton: {
-    height: 34,
+  optionButton: {
+    height: 36,
     paddingHorizontal: 14,
-    borderRadius: 17,
+    borderRadius: 18,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  activeDateButton: {
+  activeOption: {
+    backgroundColor: '#111827',
+  },
+
+  activeIncomeOption: {
+    backgroundColor: '#DCFCE7',
+  },
+
+  activeExpenseOption: {
+    backgroundColor: '#FEE2E2',
+  },
+
+  activeDateOption: {
     backgroundColor: '#DBEAFE',
   },
 
-  dateText: {
-    fontSize: 12,
+  optionText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#6B7280',
   },
 
-  activeDateText: {
+  activeOptionText: {
+    color: '#FFFFFF',
+  },
+
+  activeIncomeOptionText: {
+    color: '#16A34A',
+  },
+
+  activeExpenseOptionText: {
+    color: '#DC2626',
+  },
+
+  activeDateOptionText: {
     color: '#2563EB',
+  },
+
+  clearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+
+  clearButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
   },
 
   summaryCard: {
@@ -656,68 +587,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     paddingHorizontal: 16,
-  },
-
-  transaction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 17,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-
-  transactionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-  },
-
-  transactionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    backgroundColor: '#FEE2E2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  incomeTransactionIcon: {
-    backgroundColor: '#DCFCE7',
-  },
-
-  transactionInfo: {
-    flex: 1,
-  },
-
-  transactionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 3,
-  },
-
-  transactionCategory: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginBottom: 3,
-  },
-
-  transactionDate: {
-    fontSize: 10,
-    color: '#9CA3AF',
-  },
-
-  transactionAmount: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#DC2626',
-    marginLeft: 8,
-  },
-
-  incomeAmount: {
-    color: '#16A34A',
   },
 
   emptyState: {

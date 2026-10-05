@@ -1,18 +1,41 @@
+import { AppHeader } from '@/components/app-header';
+import { TransactionRow } from '@/components/transaction-row';
 import { useTransactions } from '@/context/TransactionContext';
+import {
+  computeStreak,
+  nextStreakMilestone,
+  STREAK_MILESTONES,
+} from '@/utils/insights';
+import { getStreakMotivation } from '@/utils/motivation';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const { transactions } = useTransactions();
+
+  const streak = useMemo(
+    () => computeStreak(transactions),
+    [transactions]
+  );
+
+  const motivation = useMemo(
+    () => getStreakMotivation(streak),
+    [streak]
+  );
+
+  const milestone = nextStreakMilestone(streak.current);
+  const isMilestone =
+    streak.loggedToday &&
+    STREAK_MILESTONES.includes(streak.current);
 
   const income = transactions
     .filter((transaction) => transaction.type === 'income')
@@ -35,20 +58,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Good morning 👋</Text>
-            <Text style={styles.name}>Elizabeth</Text>
-          </View>
-
-          <Pressable style={styles.notificationButton}>
-            <Ionicons
-              name="notifications-outline"
-              size={22}
-              color="#111827"
-            />
-          </Pressable>
-        </View>
+        <AppHeader />
 
         {/* Balance Card */}
         <View style={styles.balanceCard}>
@@ -63,21 +73,17 @@ export default function HomeScreen() {
             {formatAmount(balance)}
           </Text>
 
-          <View style={styles.balanceFooter}>
-            <View style={styles.balanceChange}>
-              <Ionicons
-                name={balance >= 0 ? 'trending-up' : 'trending-down'}
-                size={16}
-                color="#D1FAE5"
-              />
+          <View style={styles.balanceChange}>
+            <Ionicons
+              name={balance >= 0 ? 'trending-up' : 'trending-down'}
+              size={16}
+              color="#14532D"
+            />
 
-              <Text style={styles.changeText}>
-                {transactions.length} transaction
-                {transactions.length === 1 ? '' : 's'}
-              </Text>
-            </View>
-
-            <Text style={styles.thisMonth}>All time</Text>
+            <Text style={styles.changeText}>
+              {transactions.length} transaction
+              {transactions.length === 1 ? '' : 's'}
+            </Text>
           </View>
         </View>
 
@@ -116,6 +122,61 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Daily Streak */}
+        <View
+          style={[
+            styles.streakCard,
+            isMilestone && styles.streakCardMilestone,
+          ]}
+        >
+          <View
+            style={[
+              styles.streakIcon,
+              isMilestone && styles.streakIconMilestone,
+            ]}
+          >
+            <Ionicons
+              name="flame"
+              size={18}
+              color={streak.current > 0 ? '#EA580C' : '#9CA3AF'}
+            />
+          </View>
+
+          <View style={styles.streakInfo}>
+            <View style={styles.streakTitleRow}>
+              <Text style={styles.streakTitle}>
+                {streak.current > 0
+                  ? `${streak.current}-day streak`
+                  : 'Start a streak'}
+              </Text>
+
+              <Text style={styles.streakBest}>
+                Best {streak.longest}
+              </Text>
+            </View>
+
+            <Text style={styles.motivationText}>
+              {motivation}
+            </Text>
+
+            {streak.current > 0 && milestone && (
+              <View style={styles.streakProgressTrack}>
+                <View
+                  style={[
+                    styles.streakProgressFill,
+                    {
+                      width: `${Math.min(
+                        100,
+                        Math.round((streak.current / milestone) * 100)
+                      )}%` as const,
+                    },
+                  ]}
+                />
+              </View>
+            )}
+          </View>
+        </View>
+
         {/* Recent Transactions */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
@@ -123,7 +184,7 @@ export default function HomeScreen() {
           </Text>
 
           {transactions.length > 0 && (
-            <Pressable>
+            <Pressable onPress={() => router.push('/transactions')}>
               <Text style={styles.seeAll}>See all</Text>
             </Pressable>
           )}
@@ -150,60 +211,11 @@ export default function HomeScreen() {
             </View>
           ) : (
             transactions.slice(0, 5).map((transaction, index) => (
-              <View
+              <TransactionRow
                 key={transaction.id}
-                style={[
-                  styles.transaction,
-                  index === Math.min(transactions.length, 5) - 1 &&
-                    styles.lastTransaction,
-                ]}
-              >
-                <View style={styles.transactionLeft}>
-                  <View
-                    style={[
-                      styles.transactionIcon,
-                      transaction.type === 'income' &&
-                        styles.incomeTransactionIcon,
-                    ]}
-                  >
-                    <Ionicons
-                      name={
-                        transaction.type === 'income'
-                          ? 'arrow-down-outline'
-                          : 'arrow-up-outline'
-                      }
-                      size={21}
-                      color={
-                        transaction.type === 'income'
-                          ? '#16A34A'
-                          : '#DC2626'
-                      }
-                    />
-                  </View>
-
-                  <View style={styles.transactionInfo}>
-                    <Text style={styles.transactionTitle}>
-                      {transaction.note || transaction.category}
-                    </Text>
-
-                    <Text style={styles.transactionCategory}>
-                      {transaction.category} •{' '}
-                      {transaction.paymentMethod}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text
-                  style={[
-                    styles.transactionAmount,
-                    transaction.type === 'income' &&
-                      styles.incomeAmount,
-                  ]}
-                >
-                  {transaction.type === 'income' ? '+' : '-'}{' '}
-                  {formatAmount(transaction.amount)}
-                </Text>
-              </View>
+                transaction={transaction}
+                isLast={index === Math.min(transactions.length, 5) - 1}
+              />
             ))
           )}
         </View>
@@ -232,64 +244,103 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
 
-  header: {
+  streakCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 10,
+    marginBottom: 20,
+  },
+
+  streakCardMilestone: {
+    borderColor: '#FDBA74',
+    backgroundColor: '#FFF7ED',
+  },
+
+  streakIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: '#FFEDD5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  streakIconMilestone: {
+    backgroundColor: '#EA580C',
+  },
+
+  streakInfo: {
+    flex: 1,
+  },
+
+  streakTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 2,
   },
 
-  greeting: {
+  streakTitle: {
     fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-
-  name: {
-    fontSize: 26,
     fontWeight: '700',
     color: '#111827',
   },
 
-  notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  streakBest: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+
+  streakProgressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#F1F5F9',
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+
+  streakProgressFill: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#EA580C',
+  },
+
+  motivationText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    lineHeight: 16,
   },
 
   balanceCard: {
-    backgroundColor: '#111827',
+    backgroundColor: '#BBF7D0',
     borderRadius: 24,
     padding: 24,
     marginBottom: 18,
   },
 
   balanceLabel: {
-    color: '#9CA3AF',
+    color: '#166534',
     fontSize: 14,
+    fontWeight: '600',
     marginBottom: 8,
   },
 
   balance: {
-    color: '#FFFFFF',
+    color: '#14532D',
     fontSize: 32,
     fontWeight: '800',
     marginBottom: 20,
   },
 
   negativeBalance: {
-    color: '#FCA5A5',
-  },
-
-  balanceFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    color: '#B91C1C',
   },
 
   balanceChange: {
@@ -299,14 +350,9 @@ const styles = StyleSheet.create({
   },
 
   changeText: {
-    color: '#D1FAE5',
+    color: '#14532D',
     fontSize: 13,
     fontWeight: '600',
-  },
-
-  thisMonth: {
-    color: '#9CA3AF',
-    fontSize: 13,
   },
 
   summaryRow: {
@@ -409,66 +455,6 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 19,
-  },
-
-  transaction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-
-  lastTransaction: {
-    borderBottomWidth: 0,
-  },
-
-  transactionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-
-  transactionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#FEE2E2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  incomeTransactionIcon: {
-    backgroundColor: '#DCFCE7',
-  },
-
-  transactionInfo: {
-    flex: 1,
-  },
-
-  transactionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 3,
-  },
-
-  transactionCategory: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-
-  transactionAmount: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#DC2626',
-    marginLeft: 8,
-  },
-
-  incomeAmount: {
-    color: '#16A34A',
   },
 
   addButton: {

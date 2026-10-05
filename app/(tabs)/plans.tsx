@@ -1,15 +1,16 @@
+import { AppHeader } from '@/components/app-header';
 import { useTransactions } from '@/context/TransactionContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function PlansScreen() {
   const router = useRouter();
@@ -57,22 +58,10 @@ export default function PlansScreen() {
         contentContainerStyle={styles.content}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Plans</Text>
-            <Text style={styles.subtitle}>
-              Plan where your money should go
-            </Text>
-          </View>
-
-          <View style={styles.headerIcon}>
-            <Ionicons
-              name="flag-outline"
-              size={23}
-              color="#2563EB"
-            />
-          </View>
-        </View>
+        <AppHeader
+          title="Plans"
+          subtitle="Plan where your money should go"
+        />
 
         {/* Budgets */}
         <View style={styles.sectionHeader}>
@@ -415,34 +404,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 45,
-  },
-
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 28,
-  },
-
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#111827',
-  },
-
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 4,
-  },
-
-  headerIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
   sectionHeader: {

@@ -1,8 +1,13 @@
-import { useTransactions } from '@/context/TransactionContext';
+import { AppHeader } from '@/components/app-header';
+import {
+  TransactionType,
+  useTransactions,
+} from '@/context/TransactionContext';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -38,18 +43,46 @@ const paymentMethods = [
 ];
 
 export default function ModalScreen() {
-  const { addTransaction } = useTransactions();
+  const params = useLocalSearchParams<{ id?: string }>();
 
-  const [type, setType] = useState<'expense' | 'income'>('expense');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('Food');
-  const [paymentMethod, setPaymentMethod] = useState('Mobile Money');
-  const [note, setNote] = useState('');
+  const {
+    transactions,
+    hydrated,
+    addTransaction,
+    updateTransaction,
+    deleteTransaction,
+  } = useTransactions();
+
+  const existingTransaction = params.id
+    ? transactions.find(
+        (transaction) => transaction.id === params.id
+      )
+    : undefined;
+
+  const isEditing = !!existingTransaction;
+
+  const [type, setType] = useState<TransactionType>(
+    existingTransaction?.type ?? 'expense'
+  );
+  const [amount, setAmount] = useState(
+    existingTransaction
+      ? existingTransaction.amount.toString()
+      : ''
+  );
+  const [category, setCategory] = useState(
+    existingTransaction?.category ?? 'Food'
+  );
+  const [paymentMethod, setPaymentMethod] = useState(
+    existingTransaction?.paymentMethod ?? 'Mobile Money'
+  );
+  const [note, setNote] = useState(
+    existingTransaction?.note ?? ''
+  );
 
   const categories =
     type === 'expense' ? expenseCategories : incomeCategories;
 
-  const handleTypeChange = (newType: 'expense' | 'income') => {
+  const handleTypeChange = (newType: TransactionType) => {
     setType(newType);
 
     // Reset category when switching between Expense and Income.
@@ -57,20 +90,87 @@ export default function ModalScreen() {
   };
 
   const handleSave = () => {
-    if (!amount.trim()) {
+    const numericAmount = Number(
+      amount.replace(/,/g, '')
+    );
+
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      Alert.alert(
+        'Invalid amount',
+        'Please enter an amount greater than 0.'
+      );
       return;
     }
 
-    addTransaction({
+    const payload = {
       type,
-      amount: Number(amount),
+      amount: numericAmount,
       category,
       paymentMethod,
       note,
-    });
+    };
+
+    if (existingTransaction) {
+      updateTransaction(existingTransaction.id, payload);
+    } else {
+      addTransaction(payload);
+    }
 
     router.back();
   };
+
+  const handleDelete = () => {
+    if (!existingTransaction) {
+      return;
+    }
+
+    Alert.alert(
+      'Delete transaction?',
+      `${
+        existingTransaction.note || existingTransaction.category
+      } will be removed permanently.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteTransaction(existingTransaction.id);
+            router.back();
+          },
+        },
+      ]
+    );
+  };
+
+  if (params.id && (!hydrated || !existingTransaction)) {
+    return (
+      <View style={[styles.container, styles.content]}>
+        <AppHeader title="Edit Transaction" showBack />
+
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIcon}>
+            <Ionicons
+              name="receipt-outline"
+              size={30}
+              color="#9CA3AF"
+            />
+          </View>
+
+          <Text style={styles.emptyTitle}>
+            Transaction not found
+          </Text>
+
+          <Text style={styles.emptyText}>
+            It may have already been deleted.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -83,21 +183,17 @@ export default function ModalScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Add Transaction</Text>
-            <Text style={styles.subtitle}>
-              Record your income or expense
-            </Text>
-          </View>
-
-          <Pressable
-            style={styles.closeButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="close" size={24} color="#111827" />
-          </Pressable>
-        </View>
+        <AppHeader
+          title={
+            isEditing ? 'Edit Transaction' : 'Add Transaction'
+          }
+          subtitle={
+            isEditing
+              ? 'Update your income or expense'
+              : 'Record your income or expense'
+          }
+          showBack
+        />
 
         {/* Transaction Type */}
         <View style={styles.typeContainer}>
@@ -281,7 +377,7 @@ export default function ModalScreen() {
           disabled={!amount.trim()}
         >
           <Text style={styles.saveButtonText}>
-            Save Transaction
+            {isEditing ? 'Save Changes' : 'Save Transaction'}
           </Text>
 
           <Ionicons
@@ -290,6 +386,24 @@ export default function ModalScreen() {
             color="#FFFFFF"
           />
         </Pressable>
+
+        {/* Delete */}
+        {isEditing && (
+          <Pressable
+            style={styles.deleteButton}
+            onPress={handleDelete}
+          >
+            <Ionicons
+              name="trash-outline"
+              size={19}
+              color="#DC2626"
+            />
+
+            <Text style={styles.deleteButtonText}>
+              Delete Transaction
+            </Text>
+          </Pressable>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -304,36 +418,6 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 40,
-  },
-
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 24,
-  },
-
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#111827',
-  },
-
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 4,
-  },
-
-  closeButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
 
   typeContainer: {
@@ -517,5 +601,56 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+
+  deleteButton: {
+    height: 56,
+    borderRadius: 17,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    marginTop: 12,
+  },
+
+  deleteButtonText: {
+    color: '#DC2626',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 55,
+    paddingHorizontal: 20,
+  },
+
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 6,
+  },
+
+  emptyText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 19,
   },
 });

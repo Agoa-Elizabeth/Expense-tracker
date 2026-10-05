@@ -1,16 +1,17 @@
+import { AppHeader } from '@/components/app-header';
 import { useTransactions } from '@/context/TransactionContext';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-type MonthFilter = 'thisMonth' | 'lastMonth';
+type PeriodFilter = 'all' | 'today' | 'week' | 'month' | 'year';
 
 const categoryIcons: Record<string, any> = {
   Food: 'restaurant-outline',
@@ -30,60 +31,52 @@ const categoryIcons: Record<string, any> = {
 export default function AnalyticsScreen() {
   const { transactions } = useTransactions();
 
-  const [monthFilter, setMonthFilter] =
-    useState<MonthFilter>('thisMonth');
+  const [periodFilter, setPeriodFilter] =
+    useState<PeriodFilter>('all');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const selectedMonth = useMemo(() => {
-    const now = new Date();
-
-    if (monthFilter === 'thisMonth') {
-      return {
-        month: now.getMonth(),
-        year: now.getFullYear(),
-      };
+  const periodTransactions = useMemo(() => {
+    if (periodFilter === 'all') {
+      return transactions;
     }
 
-    const lastMonth = new Date(
-      now.getFullYear(),
-      now.getMonth() - 1,
-      1
-    );
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
 
-    return {
-      month: lastMonth.getMonth(),
-      year: lastMonth.getFullYear(),
-    };
-  }, [monthFilter]);
+    if (periodFilter === 'week') {
+      const day = now.getDay();
+      start.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    } else if (periodFilter === 'month') {
+      start.setDate(1);
+    } else if (periodFilter === 'year') {
+      start.setMonth(0, 1);
+    }
 
-  const monthTransactions = useMemo(() => {
     return transactions.filter((transaction) => {
       const date = new Date(transaction.date);
-
-      return (
-        date.getMonth() === selectedMonth.month &&
-        date.getFullYear() === selectedMonth.year
-      );
+      return date >= start && date <= now;
     });
-  }, [transactions, selectedMonth]);
+  }, [transactions, periodFilter]);
 
   const income = useMemo(() => {
-    return monthTransactions
+    return periodTransactions
       .filter((transaction) => transaction.type === 'income')
       .reduce((total, transaction) => total + transaction.amount, 0);
-  }, [monthTransactions]);
+  }, [periodTransactions]);
 
   const expenses = useMemo(() => {
-    return monthTransactions
+    return periodTransactions
       .filter((transaction) => transaction.type === 'expense')
       .reduce((total, transaction) => total + transaction.amount, 0);
-  }, [monthTransactions]);
+  }, [periodTransactions]);
 
   const balance = income - expenses;
 
   const spendingByCategory = useMemo(() => {
     const categoryTotals: Record<string, number> = {};
 
-    monthTransactions
+    periodTransactions
       .filter((transaction) => transaction.type === 'expense')
       .forEach((transaction) => {
         categoryTotals[transaction.category] =
@@ -99,27 +92,26 @@ export default function AnalyticsScreen() {
           expenses > 0 ? (amount / expenses) * 100 : 0,
       }))
       .sort((a, b) => b.amount - a.amount);
-  }, [monthTransactions, expenses]);
+  }, [periodTransactions, expenses]);
 
   const formatAmount = (amount: number) => {
     return `UGX ${amount.toLocaleString()}`;
   };
 
-  const monthName = new Date(
-    selectedMonth.year,
-    selectedMonth.month,
-    1
-  ).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  });
+  const periodLabels: Record<PeriodFilter, string> = {
+    all: 'All time',
+    today: 'Today',
+    week: 'This week',
+    month: 'This month',
+    year: 'This year',
+  };
 
   const averageExpense =
-    monthTransactions.filter(
+    periodTransactions.filter(
       (transaction) => transaction.type === 'expense'
     ).length > 0
       ? expenses /
-        monthTransactions.filter(
+        periodTransactions.filter(
           (transaction) => transaction.type === 'expense'
         ).length
       : 0;
@@ -131,66 +123,82 @@ export default function AnalyticsScreen() {
         contentContainerStyle={styles.content}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Analytics</Text>
-            <Text style={styles.subtitle}>
-              Understand where your money goes
-            </Text>
-          </View>
+        <AppHeader
+          title="Analytics"
+          subtitle="Understand where your money goes"
+        />
 
-          <View style={styles.headerIcon}>
+        {/* Period Selector */}
+        <View style={styles.dropdown}>
+          <Pressable
+            style={styles.dropdownHeader}
+            onPress={() => setDropdownOpen((open) => !open)}
+          >
+            <View style={styles.dropdownHeaderLeft}>
+              <Ionicons
+                name="calendar-outline"
+                size={18}
+                color="#2563EB"
+              />
+
+              <Text style={styles.dropdownTitle}>
+                {periodLabels[periodFilter]}
+              </Text>
+            </View>
+
             <Ionicons
-              name="stats-chart"
-              size={22}
-              color="#2563EB"
+              name={dropdownOpen ? 'chevron-up' : 'chevron-down'}
+              size={18}
+              color="#6B7280"
             />
-          </View>
-        </View>
-
-        {/* Month Selector */}
-        <View style={styles.monthSelector}>
-          <Pressable
-            style={[
-              styles.monthButton,
-              monthFilter === 'thisMonth' &&
-                styles.activeMonthButton,
-            ]}
-            onPress={() => setMonthFilter('thisMonth')}
-          >
-            <Text
-              style={[
-                styles.monthButtonText,
-                monthFilter === 'thisMonth' &&
-                  styles.activeMonthText,
-              ]}
-            >
-              This Month
-            </Text>
           </Pressable>
 
-          <Pressable
-            style={[
-              styles.monthButton,
-              monthFilter === 'lastMonth' &&
-                styles.activeMonthButton,
-            ]}
-            onPress={() => setMonthFilter('lastMonth')}
-          >
-            <Text
-              style={[
-                styles.monthButtonText,
-                monthFilter === 'lastMonth' &&
-                  styles.activeMonthText,
-              ]}
-            >
-              Last Month
-            </Text>
-          </Pressable>
+          {dropdownOpen && (
+            <View style={styles.dropdownBody}>
+              {(
+                ['all', 'today', 'week', 'month', 'year'] as const
+              ).map((option) => {
+                const isActive = periodFilter === option;
+
+                return (
+                  <Pressable
+                    key={option}
+                    style={[
+                      styles.optionRow,
+                      isActive && styles.activeOptionRow,
+                    ]}
+                    onPress={() => {
+                      setPeriodFilter(option);
+                      setDropdownOpen(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        isActive && styles.activeOptionText,
+                      ]}
+                    >
+                      {periodLabels[option]}
+                    </Text>
+
+                    {isActive && (
+                      <Ionicons
+                        name="checkmark"
+                        size={18}
+                        color="#2563EB"
+                      />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
 
-        {/* Current Month */}
-        <Text style={styles.periodTitle}>{monthName}</Text>
+        {/* Current Period */}
+        <Text style={styles.periodTitle}>
+          {periodLabels[periodFilter]}
+        </Text>
 
         {/* Overview Cards */}
         <View style={styles.overviewGrid}>
@@ -257,7 +265,7 @@ export default function AnalyticsScreen() {
                   : 'trending-down-outline'
               }
               size={26}
-              color="#FFFFFF"
+              color="#14532D"
             />
           </View>
         </View>
@@ -368,7 +376,7 @@ export default function AnalyticsScreen() {
             </View>
 
             <Text style={styles.statValue}>
-              {monthTransactions.length}
+              {periodTransactions.length}
             </Text>
           </View>
 
@@ -451,61 +459,64 @@ const styles = StyleSheet.create({
     paddingBottom: 45,
   },
 
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  dropdown: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     marginBottom: 20,
+    overflow: 'hidden',
   },
 
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
+  dropdownHeader: {
+    height: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+  },
+
+  dropdownHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  dropdownTitle: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#111827',
   },
 
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 4,
+  dropdownBody: {
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 6,
   },
 
-  headerIcon: {
-    width: 44,
+  optionRow: {
     height: 44,
-    borderRadius: 14,
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  monthSelector: {
     flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 20,
-  },
-
-  monthButton: {
-    flex: 1,
-    height: 42,
-    borderRadius: 11,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    borderRadius: 10,
   },
 
-  activeMonthButton: {
-    backgroundColor: '#FFFFFF',
+  activeOptionRow: {
+    backgroundColor: '#EFF6FF',
   },
 
-  monthButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
+  optionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
   },
 
-  activeMonthText: {
+  activeOptionText: {
+    fontWeight: '700',
     color: '#2563EB',
   },
 
@@ -567,7 +578,7 @@ const styles = StyleSheet.create({
   },
 
   balanceCard: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#BBF7D0',
     borderRadius: 20,
     padding: 20,
     flexDirection: 'row',
@@ -578,21 +589,21 @@ const styles = StyleSheet.create({
 
   balanceLabel: {
     fontSize: 13,
-    color: '#DBEAFE',
+    color: '#166534',
     marginBottom: 5,
   },
 
   balanceAmount: {
     fontSize: 23,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#14532D',
   },
 
   balanceIcon: {
     width: 52,
     height: 52,
     borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: '#86EFAC',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -2,8 +2,16 @@ import React, {
   createContext,
   ReactNode,
   useContext,
+  useEffect,
+  useRef,
   useState,
 } from 'react';
+
+import {
+  loadState,
+  PersistedState,
+  saveState,
+} from './storage';
 
 export type TransactionType = 'expense' | 'income';
 
@@ -32,6 +40,8 @@ export type SavingsGoal = {
 };
 
 type TransactionContextType = {
+  hydrated: boolean;
+
   transactions: Transaction[];
 
   budgets: Budget[];
@@ -40,9 +50,18 @@ type TransactionContextType = {
 
   savingsGoals: SavingsGoal[];
 
+  seenNotificationIds: string[];
+
   addTransaction: (
     transaction: Omit<Transaction, 'id' | 'date'>
   ) => void;
+
+  updateTransaction: (
+    id: string,
+    updates: Omit<Transaction, 'id' | 'date'>
+  ) => void;
+
+  deleteTransaction: (id: string) => void;
 
   addBudget: (
     budget: Omit<Budget, 'id'>
@@ -64,6 +83,8 @@ type TransactionContextType = {
   ) => void;
 
   deleteSavingsGoal: (id: string) => void;
+
+  markNotificationsSeen: (ids: string[]) => void;
 };
 
 const TransactionContext =
@@ -89,6 +110,60 @@ export function TransactionProvider({
     SavingsGoal[]
   >([]);
 
+  const [seenNotificationIds, setSeenNotificationIds] =
+    useState<string[]>([]);
+
+  const [hydrated, setHydrated] = useState(false);
+
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadState().then((state) => {
+      if (cancelled) return;
+
+      setTransactions(state.transactions);
+      setBudgets(state.budgets);
+      setGeneralSavings(state.generalSavings);
+      setSavingsGoals(state.savingsGoals);
+      setSeenNotificationIds(state.seenNotificationIds);
+      setHydrated(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+    }
+
+    saveTimer.current = setTimeout(() => {
+      const state: PersistedState = {
+        transactions,
+        budgets,
+        generalSavings,
+        savingsGoals,
+        seenNotificationIds,
+      };
+
+      saveState(state);
+    }, 300);
+
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+      }
+    };
+  }, [hydrated, transactions, budgets, generalSavings, savingsGoals, seenNotificationIds]);
+
   // -----------------------------
   // TRANSACTIONS
   // -----------------------------
@@ -96,6 +171,13 @@ export function TransactionProvider({
   const addTransaction = (
     transaction: Omit<Transaction, 'id' | 'date'>
   ) => {
+    if (
+      !Number.isFinite(transaction.amount) ||
+      transaction.amount <= 0
+    ) {
+      return;
+    }
+
     const newTransaction: Transaction = {
       ...transaction,
       id: Date.now().toString(),
@@ -106,6 +188,31 @@ export function TransactionProvider({
       newTransaction,
       ...currentTransactions,
     ]);
+  };
+
+  const updateTransaction = (
+    id: string,
+    updates: Omit<Transaction, 'id' | 'date'>
+  ) => {
+    if (!Number.isFinite(updates.amount) || updates.amount <= 0) {
+      return;
+    }
+
+    setTransactions((currentTransactions) =>
+      currentTransactions.map((transaction) =>
+        transaction.id === id
+          ? { ...transaction, ...updates }
+          : transaction
+      )
+    );
+  };
+
+  const deleteTransaction = (id: string) => {
+    setTransactions((currentTransactions) =>
+      currentTransactions.filter(
+        (transaction) => transaction.id !== id
+      )
+    );
   };
 
   // -----------------------------
@@ -204,9 +311,33 @@ export function TransactionProvider({
     );
   };
 
+  // -----------------------------
+  // NOTIFICATIONS
+  // -----------------------------
+
+  const markNotificationsSeen = (ids: string[]) => {
+    setSeenNotificationIds((currentIds) => {
+      const next = new Set(currentIds);
+
+      for (const id of ids) {
+        next.add(id);
+      }
+
+      const merged = Array.from(next);
+
+      if (merged.length === currentIds.length) {
+        return currentIds;
+      }
+
+      return merged;
+    });
+  };
+
   return (
     <TransactionContext.Provider
       value={{
+        hydrated,
+
         transactions,
 
         budgets,
@@ -215,7 +346,13 @@ export function TransactionProvider({
 
         savingsGoals,
 
+        seenNotificationIds,
+
         addTransaction,
+
+        updateTransaction,
+
+        deleteTransaction,
 
         addBudget,
 
@@ -230,6 +367,8 @@ export function TransactionProvider({
         addToSavingsGoal,
 
         deleteSavingsGoal,
+
+        markNotificationsSeen,
       }}
     >
       {children}

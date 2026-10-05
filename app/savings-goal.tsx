@@ -1,3 +1,4 @@
+import { AppHeader } from '@/components/app-header';
 import { useTransactions } from '@/context/TransactionContext';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -7,13 +8,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const goalIcons = [
   { name: 'Laptop', icon: 'laptop-outline' },
@@ -192,26 +193,14 @@ export default function SavingsGoalScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Header */}
-          <View style={styles.header}>
-            <Pressable
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <Ionicons
-                name="arrow-back"
-                size={22}
-                color="#111827"
-              />
-            </Pressable>
-
-            <Text style={styles.headerTitle}>
-              {isAddingToExistingGoal
+          <AppHeader
+            title={
+              isAddingToExistingGoal
                 ? 'Add Savings'
-                : 'New Savings Goal'}
-            </Text>
-
-            <View style={styles.headerSpacer} />
-          </View>
+                : 'New Savings Goal'
+            }
+            showBack
+          />
 
           {isAddingToExistingGoal ? (
             <>
@@ -573,34 +562,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingBottom: 45,
-  },
-
-  header: {
-    height: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  headerSpacer: {
-    width: 42,
   },
 
   intro: {
